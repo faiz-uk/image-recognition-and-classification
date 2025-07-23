@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Comprehensive training script supporting 5 CNN models on 4 datasets
 With intelligent parameter optimization and performance prediction
@@ -120,14 +119,18 @@ def create_model(architecture: str, dataset_info: dict, dataset_name: str, **mod
             'hidden_units': model_kwargs.get('hidden_units', 512)
         }
         
-        if architecture.lower() == 'resnet50':
-            model_params['trainable_params'] = model_kwargs.get('trainable_params', 'top_layers')
-        elif architecture.lower() == 'densenet121':
-            model_params['trainable_params'] = model_kwargs.get('trainable_params', 'top_layers')
+        # Handle trainable parameters for transfer learning models
+        trainable_mode = model_kwargs.get('trainable_params', 'top_layers')
+        
+        if architecture.lower() in ['resnet50', 'densenet121']:
+            # These models use freeze_base parameter
+            model_params['freeze_base'] = (trainable_mode == 'top_layers')
         elif architecture.lower() == 'inceptionv3':
-            model_params['trainable_params'] = model_kwargs.get('trainable_params', 'top_layers')
+            # InceptionV3 uses trainable_params parameter
+            model_params['trainable_params'] = trainable_mode
         elif architecture.lower() == 'mobilenet':
-            model_params['trainable_params'] = model_kwargs.get('trainable_params', 'top_layers')
+            # MobileNet uses trainable_params parameter and has alpha
+            model_params['trainable_params'] = trainable_mode
             model_params['alpha'] = model_kwargs.get('alpha', 1.0)
         
         model = model_class(**model_params)

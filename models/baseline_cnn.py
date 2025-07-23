@@ -83,83 +83,55 @@ class BaselineCNNModel(BaseModel):
     
     def build_model(self) -> Model:
         """
-        Build the Baseline CNN model
+        Build Baseline CNN model using configured architecture parameters
         
         Returns:
             Compiled Keras model
         """
-        logger.info("Building Baseline CNN model...")
+        logger.info(f"Building Baseline CNN model with {len(self.conv_filters)} conv layers and {len(self.dense_units)} dense layers...")
         
         # Input layer
         inputs = keras.Input(shape=self.input_shape, name='input')
         x = inputs
         
-        # Convolutional blocks
+        # Convolutional layers based on conv_filters parameter
         for i, filters in enumerate(self.conv_filters):
-            # Conv + ReLU + Conv + ReLU + MaxPool + Dropout
             x = layers.Conv2D(
-                filters, 
-                (3, 3), 
+                filters, (3, 3), 
                 activation='relu', 
                 padding='same',
-                name=f'conv2d_{i*2+1}'
+                kernel_initializer='he_normal', 
+                name=f'conv{i+1}'
             )(x)
-            
-            x = layers.Conv2D(
-                filters, 
-                (3, 3), 
-                activation='relu', 
-                padding='same',
-                name=f'conv2d_{i*2+2}'
-            )(x)
-            
-            x = layers.MaxPooling2D(
-                (2, 2), 
-                name=f'maxpool_{i+1}'
-            )(x)
-            
-            x = layers.Dropout(
-                self.dropout_rate * 0.5,  # Lighter dropout in conv layers
-                name=f'dropout_conv_{i+1}'
-            )(x)
+            x = layers.MaxPooling2D((2, 2), name=f'pool{i+1}')(x)
+            x = layers.Dropout(0.25, name=f'dropout{i+1}')(x)
         
-        # Global Average Pooling
-        x = layers.GlobalAveragePooling2D(name='global_avg_pool')(x)
+        # Flatten layer
+        x = layers.Flatten(name='flatten')(x)
         
-        # Dense layers
+        # Dense layers based on dense_units parameter
         for i, units in enumerate(self.dense_units):
             x = layers.Dense(
                 units, 
-                activation='relu',
-                name=f'dense_{i+1}'
+                activation='relu', 
+                kernel_initializer='he_normal', 
+                name=f'dense{i+1}'
             )(x)
-            
-            x = layers.Dropout(
-                self.dropout_rate,
-                name=f'dropout_dense_{i+1}'
-            )(x)
+            x = layers.Dropout(self.dropout_rate, name=f'dense_dropout{i+1}')(x)
         
         # Output layer
         if self.num_classes == 2:
-            # Binary classification
-            outputs = layers.Dense(
-                1, 
-                activation='sigmoid', 
-                name='predictions'
-            )(x)
+            outputs = layers.Dense(1, activation='sigmoid', 
+                                 kernel_initializer='glorot_uniform', name='predictions')(x)
         else:
-            # Multi-class classification
-            outputs = layers.Dense(
-                self.num_classes, 
-                activation='softmax', 
-                name='predictions'
-            )(x)
+            outputs = layers.Dense(self.num_classes, activation='softmax',
+                                 kernel_initializer='glorot_uniform', name='predictions')(x)
         
         # Create model
-        model = Model(inputs=inputs, outputs=outputs, name='BaselineCNN')
+        model = Model(inputs=inputs, outputs=outputs, name=f'BaselineCNN_{len(self.conv_filters)}Conv_{len(self.dense_units)}Dense')
         
         # Log model summary
-        logger.info("Baseline CNN model architecture:")
+        logger.info(f"Baseline CNN model architecture (Conv: {self.conv_filters}, Dense: {self.dense_units}):")
         model.summary(print_fn=logger.info)
         
         # Calculate model size
@@ -169,7 +141,8 @@ class BaselineCNNModel(BaseModel):
         self.model_info.update({
             'total_params': total_params,
             'trainable_params': trainable_params,
-            'model_size_mb': total_params * 4 / (1024 * 1024)  # Approximate size in MB
+            'model_size_mb': total_params * 4 / (1024 * 1024),
+            'architecture_type': f'Configurable CNN ({len(self.conv_filters)} conv + {len(self.dense_units)} dense)'
         })
         
         logger.info(f"Model created - Total params: {total_params:,}, Trainable: {trainable_params:,}")

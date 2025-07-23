@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Unified training script using predefined configurations
 Supports all 5 models and 4 datasets with ConfigManager
@@ -159,7 +158,7 @@ def train_with_config(config_name: str, custom_overrides: dict = None):
             input_shape=experiment_config.model.input_shape,
             architecture=arch_size
         )
-        keras_model = model
+        keras_model = model.build_model()
     else:
         model_class = get_model_class(experiment_config.model.architecture)
         
@@ -172,8 +171,17 @@ def train_with_config(config_name: str, custom_overrides: dict = None):
         }
         
         if hasattr(experiment_config.model, 'freeze_base'):
-            if experiment_config.model.architecture in ['resnet50', 'densenet121', 'inceptionv3', 'mobilenet']:
-                model_params['trainable_params'] = 'top_layers' if experiment_config.model.freeze_base else 'all'
+            freeze_base = experiment_config.model.freeze_base
+        else:
+            freeze_base = True  # Default to freezing base layers
+        
+        if experiment_config.model.architecture in ['resnet50', 'densenet121']:
+            # These models use freeze_base parameter
+            model_params['freeze_base'] = freeze_base
+        elif experiment_config.model.architecture in ['inceptionv3', 'mobilenet']:
+            # These models use trainable_params parameter
+            trainable_params = 'top_layers' if freeze_base else 'all'
+            model_params['trainable_params'] = trainable_params
         
         if experiment_config.model.architecture == 'mobilenet':
             model_params['alpha'] = getattr(experiment_config.model, 'alpha', 1.0)

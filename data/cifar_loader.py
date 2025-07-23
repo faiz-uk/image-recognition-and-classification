@@ -246,12 +246,13 @@ class DataLoader:
         Returns:
             One-hot encoded label arrays
         """
-        y_train = keras.utils.to_categorical(y_train, self.num_classes)
-        y_val = keras.utils.to_categorical(y_val, self.num_classes)
-        y_test = keras.utils.to_categorical(y_test, self.num_classes)
+        
+        y_train_onehot = tf.keras.utils.to_categorical(y_train, self.num_classes).astype(np.float32)
+        y_val_onehot = tf.keras.utils.to_categorical(y_val, self.num_classes).astype(np.float32)
+        y_test_onehot = tf.keras.utils.to_categorical(y_test, self.num_classes).astype(np.float32)
         
         logger.info(f"Labels one-hot encoded for {self.num_classes} classes")
-        return y_train, y_val, y_test
+        return y_train_onehot, y_val_onehot, y_test_onehot
     
     def get_data_info(self, X_train: np.ndarray, X_val: np.ndarray, X_test: np.ndarray,
                      y_train: np.ndarray, y_val: np.ndarray, y_test: np.ndarray) -> Dict[str, Any]:

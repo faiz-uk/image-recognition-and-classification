@@ -1,4 +1,3 @@
- #!/usr/bin/env python3
 """
 Comprehensive Configuration Demo
 Showcases all configuration management capabilities for the CNN Image Classification Project
