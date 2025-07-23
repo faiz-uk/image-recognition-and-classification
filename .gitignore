@@ -1,0 +1,38 @@
+venv/
+__pycache__/
+datasets/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+*.pyzw
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Docs.md
+
+# Model files
+# saved_models/
+# results/
+
+# Temporary files
+*.tmp
+*.bak*.orig
+
+# Log files
+*.log

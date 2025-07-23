@@ -1,0 +1,17 @@
+Experiment Summary
+==================
+
+Model: model
+Dataset: fashion_mnist
+Timestamp: 20250723_084833
+Test Accuracy: 0.7842
+Test Loss: 0.5724
+Epochs Trained: N/A
+
+Final Training Metrics:
+  Loss: 0.8078
+  Accuracy: 0.7353
+
+Final Validation Metrics:
+  Loss: 0.5525
+  Accuracy: 0.7888
