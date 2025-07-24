@@ -3,11 +3,9 @@ Configuration Management System for CNN Image Classification Project
 Provides centralized configuration management for training different datasets on different models
 """
 
-import os
-import json
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import logging

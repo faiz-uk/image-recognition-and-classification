@@ -1,0 +1,17 @@
+Experiment Summary
+==================
+
+Model: model
+Dataset: cifar10
+Timestamp: 20250723_114007
+Test Accuracy: 0.8036
+Test Loss: 0.6191
+Epochs Trained: N/A
+
+Final Training Metrics:
+  Loss: 0.3275
+  Accuracy: 0.8882
+
+Final Validation Metrics:
+  Loss: 0.6038
+  Accuracy: 0.8062
