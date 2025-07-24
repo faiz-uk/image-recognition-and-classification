@@ -52,22 +52,14 @@ cd image-recognition-and-classification
 python3 -m venv venv
 
 # Activate virtual environment
-source venv/bin/activate.fish  # or source venv/bin/activate
+source venv/bin/activate  # or source venv/bin/activate
 
 # Upgrade pip and install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### **2. Verify Installation**
-```bash
-# Test all components
-python test_system.py
 
-# Test configuration system
-python demo_configurations.py --section basic
-
-```
 
 ## Training & Experiments
 

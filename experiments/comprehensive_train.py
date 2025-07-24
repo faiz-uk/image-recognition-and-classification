@@ -3,6 +3,9 @@ Comprehensive training script supporting 5 CNN models on 4 datasets
 With intelligent parameter optimization and performance prediction
 """
 
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+
 import os
 import sys
 import argparse
