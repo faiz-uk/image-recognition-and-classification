@@ -2,7 +2,6 @@ venv/
 __pycache__/
 datasets/
 extra/
-comprehensive_evaluation/
 *.pyc
 *.pyo
 *.pyd
