@@ -1,6 +1,5 @@
 """
 Utilities module for CNN Image Classification Project
-Contains helper functions and utilities
 """
 
 from .helpers import (

@@ -34,7 +34,6 @@ def setup_gpu(
                 for gpu in gpus:
                     tf.config.experimental.set_memory_growth(gpu, True)
                 gpu_info["memory_growth_enabled"] = True
-                logger.info(f"GPU memory growth enabled for {len(gpus)} GPU(s)")
 
             for i, gpu in enumerate(gpus):
                 gpu_details = tf.config.experimental.get_device_details(gpu)
@@ -46,19 +45,15 @@ def setup_gpu(
                         "details": gpu_details,
                     }
                 )
-                logger.info(f"GPU {i}: {gpu.name}")
 
             if mixed_precision:
                 policy = tf.keras.mixed_precision.Policy("mixed_float16")
                 tf.keras.mixed_precision.set_global_policy(policy)
                 gpu_info["mixed_precision_enabled"] = True
-                logger.info("Mixed precision training enabled")
 
         except RuntimeError as e:
             logger.error(f"GPU setup error: {e}")
             gpu_info["error"] = str(e)
-    else:
-        logger.info("No GPU available, using CPU")
 
     return gpu_info
 
@@ -90,7 +85,6 @@ def get_gpu_memory_info() -> Dict[str, Any]:
                 memory_info["memory_utilization"] = (info.used / info.total) * 100
 
             except ImportError:
-                logger.warning("pynvml not available, using TensorFlow memory info")
                 memory_info["total_memory"] = "Unknown"
                 memory_info["free_memory"] = "Unknown"
                 memory_info["used_memory"] = "Unknown"
@@ -112,14 +106,11 @@ def get_optimal_batch_size(
     """
     Calculate optimal batch size based on available memory and model complexity
 
-    Args:
-        model_input_shape: Input shape of the model (H, W, C)
-        available_memory_gb: Available GPU memory in GB (auto-detected if None)
-        model_complexity: Model complexity ('low', 'medium', 'high', 'very_high')
-        model_name: Optional model name for specific optimization
-
-    Returns:
-        Recommended batch size
+    Model Complexity Settings:
+    - low: BaselineCNN, MobileNet (efficient architectures)
+    - medium: ResNet50, DenseNet121 (standard models)  
+    - high: InceptionV3 (complex architecture)
+    - very_high: Future very large models
     """
     model_complexity_map = {
         "baseline_cnn": "low",
@@ -133,44 +124,37 @@ def get_optimal_batch_size(
 
     if model_name and model_name.lower() in model_complexity_map:
         model_complexity = model_complexity_map[model_name.lower()]
-        logger.info(
-            f"Using model-specific complexity for {model_name}: {model_complexity}"
-        )
 
     complexity_multipliers = {
-        "low": 1.8,  # BaselineCNN, MobileNet - efficient architectures
-        "medium": 1.0,  # ResNet50, DenseNet121 - standard models
-        "high": 0.6,  # InceptionV3 - complex architecture
-        "very_high": 0.4,  # For future very large models
+        "low": 1.8,
+        "medium": 1.0,
+        "high": 0.6,
+        "very_high": 0.4,
     }
 
     model_batch_adjustments = {
-        "baseline_cnn": 1.2,  # Can handle larger batches
-        "mobilenet": 1.5,  # Very efficient, can use large batches
-        "resnet50": 1.0,  # Standard reference
-        "densenet121": 0.9,  # Slightly more memory intensive
-        "inceptionv3": 0.7,  # Complex architecture, needs smaller batches
+        "baseline_cnn": 1.2,
+        "mobilenet": 1.5,
+        "resnet50": 1.0,
+        "densenet121": 0.9,
+        "inceptionv3": 0.7,
     }
 
     if available_memory_gb is None:
         memory_info = get_gpu_memory_info()
         if memory_info["gpu_available"] and memory_info["total_memory"] != "Unknown":
-            available_memory_gb = memory_info["free_memory"] / (
-                1024**3
-            )  # Convert to GB
+            available_memory_gb = memory_info["free_memory"] / (1024**3)
         else:
             available_memory_gb = psutil.virtual_memory().available / (1024**3)
-            available_memory_gb = min(available_memory_gb, 8.0)  # Cap at 8GB for safety
+            available_memory_gb = min(available_memory_gb, 8.0)
 
     input_size = np.prod(model_input_shape)
-    memory_per_sample_mb = (input_size * 4) / (1024**2)  # 4 bytes per float32
+    memory_per_sample_mb = (input_size * 4) / (1024**2)
 
-    memory_multiplier = 4  # Conservative estimate
+    memory_multiplier = 4  # Conservative estimate for gradients, activations
     total_memory_per_sample_mb = memory_per_sample_mb * memory_multiplier
 
-    available_memory_mb = (
-        available_memory_gb * 1024 * 0.8
-    )  # Use 80% of available memory
+    available_memory_mb = available_memory_gb * 1024 * 0.8  # Use 80% of available
     base_batch_size = int(available_memory_mb / total_memory_per_sample_mb)
 
     complexity_multiplier = complexity_multipliers.get(model_complexity, 1.0)
@@ -179,19 +163,9 @@ def get_optimal_batch_size(
     if model_name and model_name.lower() in model_batch_adjustments:
         model_adjustment = model_batch_adjustments[model_name.lower()]
         optimal_batch_size = int(optimal_batch_size * model_adjustment)
-        logger.info(
-            f"Applied model-specific adjustment for {model_name}: {model_adjustment}"
-        )
 
-    optimal_batch_size = max(1, min(optimal_batch_size, 512))  # Between 1 and 512
-
-    optimal_batch_size = 2 ** int(np.log2(optimal_batch_size))
-
-    logger.info(f"Optimal batch size calculated: {optimal_batch_size}")
-    logger.info(f"Available memory: {available_memory_gb:.2f} GB")
-    logger.info(f"Model complexity: {model_complexity}")
-    if model_name:
-        logger.info(f"Model name: {model_name}")
+    optimal_batch_size = max(1, min(optimal_batch_size, 512))
+    optimal_batch_size = 2 ** int(np.log2(optimal_batch_size))  # Round to power of 2
 
     return optimal_batch_size
 
@@ -206,18 +180,10 @@ def configure_tensorflow_for_performance() -> Dict[str, Any]:
     }
 
     try:
-        tf.config.threading.set_inter_op_parallelism_threads(
-            0
-        )  # Use all available cores
-        tf.config.threading.set_intra_op_parallelism_threads(
-            0
-        )  # Use all available cores
-
+        tf.config.threading.set_inter_op_parallelism_threads(0)  # Use all cores
+        tf.config.threading.set_intra_op_parallelism_threads(0)  # Use all cores
         tf.config.set_soft_device_placement(True)
-
         tf.debugging.set_log_device_placement(False)
-
-        logger.info("TensorFlow performance configuration applied")
 
     except Exception as e:
         logger.error(f"Error configuring TensorFlow: {e}")

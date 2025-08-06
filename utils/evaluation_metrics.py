@@ -40,13 +40,6 @@ class ComprehensiveEvaluator:
     def __init__(
         self, class_names: Optional[List[str]] = None, task_type: str = "multiclass"
     ):
-        """
-        Initialize comprehensive evaluator
-
-        Args:
-            class_names: List of class names for labeling
-            task_type: 'binary', 'multiclass', or 'multilabel'
-        """
         self.class_names = class_names
         self.task_type = task_type
         self.results_history = []
@@ -59,24 +52,8 @@ class ComprehensiveEvaluator:
         model_name: str = "Model",
         dataset_name: str = "Dataset",
     ) -> Dict[str, Any]:
-        """
-        Comprehensive model evaluation following the evaluation strategy
-
-        Args:
-            y_true: True labels
-            y_pred: Predicted labels
-            y_pred_proba: Predicted probabilities (for ROC curves)
-            model_name: Name of the model being evaluated
-            dataset_name: Name of the dataset
-
-        Returns:
-            Dictionary with all evaluation metrics
-        """
-        logger.info(f"Evaluating {model_name} on {dataset_name}")
-
-        # Handle label format conversion
+        """Comprehensive model evaluation following the evaluation strategy"""
         if y_true.ndim > 1 and y_true.shape[1] > 1:
-            # One-hot encoded to label indices
             y_true_labels = np.argmax(y_true, axis=1).astype(int)
         else:
             y_true_labels = y_true.flatten().astype(int)
@@ -86,10 +63,9 @@ class ComprehensiveEvaluator:
         else:
             y_pred_labels = y_pred.flatten().astype(int)
 
-        # 1. ACCURACY: Overall classification performance
+        # Core metrics
         accuracy = accuracy_score(y_true_labels, y_pred_labels)
 
-        # 2. PRECISION, RECALL, F1-SCORE: Multi-class and imbalanced tasks
         if self.task_type == "binary":
             precision = precision_score(y_true_labels, y_pred_labels, average="binary")
             recall = recall_score(y_true_labels, y_pred_labels, average="binary")
@@ -105,7 +81,6 @@ class ComprehensiveEvaluator:
                 y_true_labels, y_pred_labels, average="weighted", zero_division=0
             )
 
-        # Per-class metrics
         precision_per_class = precision_score(
             y_true_labels, y_pred_labels, average=None, zero_division=0
         )
@@ -116,10 +91,8 @@ class ComprehensiveEvaluator:
             y_true_labels, y_pred_labels, average=None, zero_division=0
         )
 
-        # 3. CONFUSION MATRIX: Class-specific performance
         cm = confusion_matrix(y_true_labels, y_pred_labels)
 
-        # Classification report
         class_report = classification_report(
             y_true_labels,
             y_pred_labels,
@@ -128,76 +101,45 @@ class ComprehensiveEvaluator:
             zero_division=0,
         )
 
-        # ROC AUC (if probabilities available)
         roc_auc = None
         if y_pred_proba is not None:
             try:
                 if self.task_type == "binary":
-                    # For binary classification, handle both 1D and 2D probability arrays
                     if y_pred_proba.ndim > 1 and y_pred_proba.shape[1] > 1:
-                        # If 2D with 2 columns, use positive class (index 1)
                         proba_positive = y_pred_proba[:, 1]
                     else:
-                        # If 1D or single column, use as-is (should be probability of positive class)
                         proba_positive = y_pred_proba.flatten()
                     roc_auc = roc_auc_score(y_true_labels, proba_positive)
                 else:
-                    # Multi-class ROC AUC
                     y_true_onehot = (
                         y_true
                         if y_true.ndim > 1
                         else tf.keras.utils.to_categorical(y_true_labels)
                     )
                     roc_auc = roc_auc_score(
-                        y_true_onehot,
-                        y_pred_proba,
-                        multi_class="ovr",
-                        average="weighted",
+                        y_true_onehot, y_pred_proba, multi_class="ovr", average="weighted"
                     )
             except Exception as e:
                 logger.warning(f"Could not calculate ROC AUC: {e}")
 
-        # Compile comprehensive results
         results = {
             "model_name": model_name,
             "dataset_name": dataset_name,
-            "task_type": self.task_type,
-            # Overall metrics
             "accuracy": accuracy,
             "precision": precision,
             "recall": recall,
             "f1_score": f1,
-            "roc_auc": roc_auc,
-            # Per-class metrics
-            "precision_per_class": (
-                precision_per_class.tolist()
-                if hasattr(precision_per_class, "tolist")
-                else precision_per_class
-            ),
-            "recall_per_class": (
-                recall_per_class.tolist()
-                if hasattr(recall_per_class, "tolist")
-                else recall_per_class
-            ),
-            "f1_per_class": (
-                f1_per_class.tolist()
-                if hasattr(f1_per_class, "tolist")
-                else f1_per_class
-            ),
-            # Confusion matrix
+            "precision_per_class": precision_per_class.tolist(),
+            "recall_per_class": recall_per_class.tolist(),
+            "f1_per_class": f1_per_class.tolist(),
             "confusion_matrix": cm.tolist(),
             "classification_report": class_report,
-            # Class distribution (fix dtype issue)
-            "class_distribution": {
-                "true": np.bincount(y_true_labels.astype(int)).tolist(),
-                "predicted": np.bincount(y_pred_labels.astype(int)).tolist(),
-            },
+            "roc_auc": roc_auc,
+            "num_samples": len(y_true_labels),
+            "num_classes": len(np.unique(y_true_labels)),
         }
 
-        # Store in history for model comparison
         self.results_history.append(results)
-
-        logger.info(f"Evaluation completed: Accuracy={accuracy:.4f}, F1={f1:.4f}")
         return results
 
     def plot_confusion_matrix(
@@ -205,427 +147,216 @@ class ComprehensiveEvaluator:
         results: Dict[str, Any],
         save_path: Optional[Path] = None,
         figsize: Tuple[int, int] = (10, 8),
-    ) -> plt.Figure:
-        """
-        Plot confusion matrix with visual inspection capabilities
-
-        Args:
-            results: Results from evaluate_model
-            save_path: Path to save the plot
-            figsize: Figure size
-
-        Returns:
-            Matplotlib figure
-        """
+    ) -> Optional[str]:
+        """Plot confusion matrix with proper formatting"""
         cm = np.array(results["confusion_matrix"])
-        model_name = results["model_name"]
-        dataset_name = results["dataset_name"]
-
-        fig, ax = plt.subplots(figsize=figsize)
-
-        # Create heatmap
+        
+        plt.figure(figsize=figsize)
+        
         sns.heatmap(
             cm,
             annot=True,
             fmt="d",
             cmap="Blues",
-            xticklabels=self.class_names or range(cm.shape[1]),
-            yticklabels=self.class_names or range(cm.shape[0]),
-            ax=ax,
+            xticklabels=self.class_names,
+            yticklabels=self.class_names,
+            cbar_kws={"label": "Count"},
         )
-
-        ax.set_title(
-            f"Confusion Matrix: {model_name} on {dataset_name}",
-            fontsize=14,
-            fontweight="bold",
+        
+        plt.title(
+            f"Confusion Matrix - {results['model_name']} on {results['dataset_name']}\n"
+            f"Accuracy: {results['accuracy']:.4f}"
         )
-        ax.set_xlabel("Predicted Labels", fontsize=12)
-        ax.set_ylabel("True Labels", fontsize=12)
-
-        # Add accuracy info
-        accuracy = results["accuracy"]
-        ax.text(
-            0.02,
-            0.98,
-            f"Accuracy: {accuracy:.3f}",
-            transform=ax.transAxes,
-            fontsize=12,
-            verticalalignment="top",
-            bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
-        )
-
+        plt.xlabel("Predicted Label")
+        plt.ylabel("True Label")
         plt.tight_layout()
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
-            logger.info(f"Confusion matrix saved to {save_path}")
-
-        return fig
-
-    def plot_classification_metrics(
-        self,
-        results: Dict[str, Any],
-        save_path: Optional[Path] = None,
-        figsize: Tuple[int, int] = (12, 8),
-    ) -> plt.Figure:
-        """
-        Plot comprehensive classification metrics
-
-        Args:
-            results: Results from evaluate_model
-            save_path: Path to save the plot
-            figsize: Figure size
-
-        Returns:
-            Matplotlib figure
-        """
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=figsize)
-
-        model_name = results["model_name"]
-        dataset_name = results["dataset_name"]
-
-        # 1. Overall metrics bar chart
-        metrics = ["Accuracy", "Precision", "Recall", "F1-Score"]
-        values = [
-            results["accuracy"],
-            results["precision"],
-            results["recall"],
-            results["f1_score"],
-        ]
-
-        bars = ax1.bar(
-            metrics, values, color=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
-        )
-        ax1.set_ylim(0, 1)
-        ax1.set_title("Overall Performance Metrics", fontweight="bold")
-        ax1.set_ylabel("Score")
-
-        # Add value labels on bars
-        for bar, value in zip(bars, values):
-            ax1.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + 0.01,
-                f"{value:.3f}",
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
-
-        # 2. Per-class F1 scores
-        if len(results["f1_per_class"]) > 1:
-            class_labels = self.class_names or [
-                f"Class {i}" for i in range(len(results["f1_per_class"]))
-            ]
-            ax2.bar(
-                range(len(results["f1_per_class"])),
-                results["f1_per_class"],
-                color="skyblue",
-            )
-            ax2.set_xlabel("Classes")
-            ax2.set_ylabel("F1-Score")
-            ax2.set_title("Per-Class F1 Scores", fontweight="bold")
-            ax2.set_xticks(range(len(class_labels)))
-            ax2.set_xticklabels(class_labels, rotation=45, ha="right")
-            ax2.set_ylim(0, 1)
+            plt.close()
+            return str(save_path)
         else:
-            ax2.text(
-                0.5,
-                0.5,
-                "Binary Classification\nSee Overall Metrics",
-                ha="center",
-                va="center",
-                transform=ax2.transAxes,
-                fontsize=12,
-            )
-            ax2.set_title("Per-Class Analysis", fontweight="bold")
+            plt.show()
+            return None
 
-        # 3. Class distribution comparison
-        true_dist = results["class_distribution"]["true"]
-        pred_dist = results["class_distribution"]["predicted"]
-
-        x = np.arange(len(true_dist))
-        width = 0.35
-
-        ax3.bar(
-            x - width / 2, true_dist, width, label="True", alpha=0.8, color="lightcoral"
-        )
-        ax3.bar(
-            x + width / 2,
-            pred_dist,
-            width,
-            label="Predicted",
-            alpha=0.8,
-            color="lightblue",
-        )
-
-        ax3.set_xlabel("Classes")
-        ax3.set_ylabel("Count")
-        ax3.set_title("Class Distribution Comparison", fontweight="bold")
-        ax3.legend()
-        ax3.set_xticks(x)
-        if self.class_names:
-            ax3.set_xticklabels(
-                self.class_names[: len(true_dist)], rotation=45, ha="right"
-            )
-
-        # 4. Performance summary text
-        ax4.axis("off")
-        summary_text = f"""
-{model_name} on {dataset_name}
-═══════════════════════════════════
-
-Accuracy: {results['accuracy']:.3f}
-Precision: {results['precision']:.3f}
-Recall: {results['recall']:.3f}
-F1-Score: {results['f1_score']:.3f}
-{"ROC AUC: " + f"{results['roc_auc']:.3f}" if results['roc_auc'] else ""}
-
-Task Type: {results['task_type'].title()}
-Classes: {len(true_dist)}
-Total Samples: {sum(true_dist)}
-        """.strip()
-
-        ax4.text(
-            0.05,
-            0.95,
-            summary_text,
-            transform=ax4.transAxes,
-            fontsize=11,
-            verticalalignment="top",
-            fontfamily="monospace",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="lightgray", alpha=0.3),
-        )
-
-        plt.suptitle(
-            f"Classification Analysis: {model_name}", fontsize=16, fontweight="bold"
-        )
-        plt.tight_layout()
-
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches="tight")
-            logger.info(f"Classification metrics plot saved to {save_path}")
-
-        return fig
-
-    def compare_models(self, save_path: Optional[Path] = None) -> pd.DataFrame:
-        """
-        Model comparison following the evaluation strategy
-
-        Args:
-            save_path: Path to save comparison results
-
-        Returns:
-            DataFrame with model comparison results
-        """
-        if not self.results_history:
-            logger.warning("No evaluation results available for comparison")
-            return pd.DataFrame()
-
-        # Create comparison DataFrame
-        comparison_data = []
-        for result in self.results_history:
-            comparison_data.append(
-                {
-                    "Model": result["model_name"],
-                    "Dataset": result["dataset_name"],
-                    "Accuracy": result["accuracy"],
-                    "Precision": result["precision"],
-                    "Recall": result["recall"],
-                    "F1-Score": result["f1_score"],
-                    "ROC AUC": result["roc_auc"] if result["roc_auc"] else "N/A",
-                }
-            )
-
-        df = pd.DataFrame(comparison_data)
-
-        # Sort by F1-Score (comprehensive metric)
-        df = df.sort_values("F1-Score", ascending=False)
-
-        if save_path:
-            df.to_csv(save_path, index=False)
-            logger.info(f"Model comparison saved to {save_path}")
-
-        logger.info("Model Comparison Results:")
-        logger.info("\n" + df.to_string(index=False))
-
-        return df
-
-    def plot_learning_curves(
+    def plot_training_curves(
         self,
         history: Dict[str, List[float]],
-        model_name: str,
+        model_name: str = "Model",
         save_path: Optional[Path] = None,
         figsize: Tuple[int, int] = (15, 5),
-    ) -> plt.Figure:
-        """
-        Plot loss curves and accuracy curves for learning dynamics
-
-        Args:
-            history: Training history with loss and accuracy curves
-            model_name: Name of the model
-            save_path: Path to save the plot
-            figsize: Figure size
-
-        Returns:
-            Matplotlib figure
-        """
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=figsize)
+    ) -> Optional[str]:
+        """Plot training curves for loss and accuracy"""
+        fig, axes = plt.subplots(1, 3, figsize=figsize)
 
         epochs = range(1, len(history["loss"]) + 1)
 
-        # 1. Loss curves
-        ax1.plot(epochs, history["loss"], "b-", label="Training Loss", linewidth=2)
+        # Loss curves
+        axes[0].plot(epochs, history["loss"], "b-", label="Training Loss", linewidth=2)
         if "val_loss" in history:
-            ax1.plot(
-                epochs, history["val_loss"], "r-", label="Validation Loss", linewidth=2
-            )
-        ax1.set_title("Model Loss", fontweight="bold")
-        ax1.set_xlabel("Epoch")
-        ax1.set_ylabel("Loss")
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
+            axes[0].plot(epochs, history["val_loss"], "r-", label="Validation Loss", linewidth=2)
+        axes[0].set_title("Model Loss")
+        axes[0].set_xlabel("Epoch")
+        axes[0].set_ylabel("Loss")
+        axes[0].legend()
+        axes[0].grid(True, alpha=0.3)
 
-        # 2. Accuracy curves
-        ax2.plot(
-            epochs, history["accuracy"], "b-", label="Training Accuracy", linewidth=2
-        )
+        # Accuracy curves
+        axes[1].plot(epochs, history["accuracy"], "b-", label="Training Accuracy", linewidth=2)
         if "val_accuracy" in history:
-            ax2.plot(
-                epochs,
-                history["val_accuracy"],
-                "r-",
-                label="Validation Accuracy",
-                linewidth=2,
-            )
-        ax2.set_title("Model Accuracy", fontweight="bold")
-        ax2.set_xlabel("Epoch")
-        ax2.set_ylabel("Accuracy")
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
+            axes[1].plot(epochs, history["val_accuracy"], "r-", label="Validation Accuracy", linewidth=2)
+        axes[1].set_title("Model Accuracy")
+        axes[1].set_xlabel("Epoch")
+        axes[1].set_ylabel("Accuracy")
+        axes[1].legend()
+        axes[1].grid(True, alpha=0.3)
 
-        # 3. Learning rate (if available)
+        # Learning rate
         if "lr" in history:
-            ax3.plot(epochs, history["lr"], "g-", linewidth=2)
-            ax3.set_title("Learning Rate", fontweight="bold")
-            ax3.set_xlabel("Epoch")
-            ax3.set_ylabel("Learning Rate")
-            ax3.set_yscale("log")
-            ax3.grid(True, alpha=0.3)
+            axes[2].plot(epochs, history["lr"], "g-", label="Learning Rate", linewidth=2)
+            axes[2].set_title("Learning Rate Schedule")
+            axes[2].set_xlabel("Epoch")
+            axes[2].set_ylabel("Learning Rate")
+            axes[2].set_yscale("log")
+            axes[2].legend()
+            axes[2].grid(True, alpha=0.3)
         else:
-            # Training dynamics summary
-            final_train_acc = history["accuracy"][-1]
-            final_val_acc = (
-                history.get("val_accuracy", [0])[-1]
-                if history.get("val_accuracy")
-                else 0
-            )
-            final_train_loss = history["loss"][-1]
-            final_val_loss = (
-                history.get("val_loss", [0])[-1] if history.get("val_loss") else 0
-            )
+            axes[2].text(0.5, 0.5, "Learning Rate\nNot Available", 
+                        ha="center", va="center", transform=axes[2].transAxes)
+            axes[2].set_title("Learning Rate")
 
-            summary_text = f"""
-Learning Dynamics Summary
-════════════════════════
-
-Final Training Accuracy: {final_train_acc:.3f}
-Final Validation Accuracy: {final_val_acc:.3f}
-Final Training Loss: {final_train_loss:.4f}
-Final Validation Loss: {final_val_loss:.4f}
-
-Epochs Trained: {len(epochs)}
-Convergence: {"Good" if abs(final_train_acc - final_val_acc) < 0.1 else "Check for overfitting"}
-            """.strip()
-
-            ax3.text(
-                0.05,
-                0.95,
-                summary_text,
-                transform=ax3.transAxes,
-                fontsize=10,
-                verticalalignment="top",
-                fontfamily="monospace",
-                bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.3),
-            )
-            ax3.set_title("Training Summary", fontweight="bold")
-            ax3.axis("off")
-
-        plt.suptitle(f"Learning Dynamics: {model_name}", fontsize=16, fontweight="bold")
+        plt.suptitle(f"Training Curves - {model_name}", fontsize=16)
         plt.tight_layout()
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
-            logger.info(f"Learning curves saved to {save_path}")
+            plt.close()
+            return str(save_path)
+        else:
+            plt.show()
+            return None
 
-        return fig
+    def plot_roc_curves(
+        self,
+        y_true: np.ndarray,
+        y_pred_proba: np.ndarray,
+        model_name: str = "Model",
+        save_path: Optional[Path] = None,
+        figsize: Tuple[int, int] = (10, 8),
+    ) -> Optional[str]:
+        """Plot ROC curves for multi-class classification"""
+        if y_true.ndim > 1 and y_true.shape[1] > 1:
+            y_true_labels = np.argmax(y_true, axis=1)
+        else:
+            y_true_labels = y_true.flatten().astype(int)
 
+        n_classes = len(np.unique(y_true_labels))
 
-# Utility functions for easy integration
-def evaluate_predictions(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    y_pred_proba: Optional[np.ndarray] = None,
-    class_names: Optional[List[str]] = None,
-    model_name: str = "Model",
-    dataset_name: str = "Dataset",
-    task_type: str = "multiclass",
-) -> Dict[str, Any]:
-    """
-    Quick evaluation function following the comprehensive strategy
+        if self.task_type == "binary":
+            fpr, tpr, _ = roc_curve(y_true_labels, y_pred_proba[:, 1] if y_pred_proba.ndim > 1 else y_pred_proba)
+            roc_auc = roc_auc_score(y_true_labels, y_pred_proba[:, 1] if y_pred_proba.ndim > 1 else y_pred_proba)
 
-    Returns:
-        Complete evaluation results
-    """
-    evaluator = ComprehensiveEvaluator(class_names=class_names, task_type=task_type)
-    return evaluator.evaluate_model(
-        y_true, y_pred, y_pred_proba, model_name, dataset_name
-    )
+            plt.figure(figsize=figsize)
+            plt.plot(fpr, tpr, color="darkorange", lw=2, label=f"ROC curve (AUC = {roc_auc:.4f})")
+            plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel("False Positive Rate")
+            plt.ylabel("True Positive Rate")
+            plt.title(f"ROC Curve - {model_name}")
+            plt.legend(loc="lower right")
+        else:
+            y_true_bin = label_binarize(y_true_labels, classes=range(n_classes))
+            
+            plt.figure(figsize=figsize)
+            
+            for i in range(n_classes):
+                fpr, tpr, _ = roc_curve(y_true_bin[:, i], y_pred_proba[:, i])
+                roc_auc = roc_auc_score(y_true_bin[:, i], y_pred_proba[:, i])
+                
+                class_name = self.class_names[i] if self.class_names else f"Class {i}"
+                plt.plot(fpr, tpr, lw=2, label=f"{class_name} (AUC = {roc_auc:.4f})")
+
+            plt.plot([0, 1], [0, 1], "k--", lw=2)
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel("False Positive Rate")
+            plt.ylabel("True Positive Rate")
+            plt.title(f"Multi-class ROC Curves - {model_name}")
+            plt.legend(loc="lower right")
+
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
+            plt.close()
+            return str(save_path)
+        else:
+            plt.show()
+            return None
+
+    def compare_models(self, results_list: List[Dict[str, Any]]) -> pd.DataFrame:
+        """Compare multiple model results"""
+        comparison_data = []
+        
+        for result in results_list:
+            comparison_data.append({
+                "Model": result["model_name"],
+                "Dataset": result["dataset_name"],
+                "Accuracy": result["accuracy"],
+                "Precision": result["precision"],
+                "Recall": result["recall"],
+                "F1-Score": result["f1_score"],
+                "ROC-AUC": result.get("roc_auc", "N/A"),
+                "Samples": result["num_samples"],
+                "Classes": result["num_classes"],
+            })
+        
+        df = pd.DataFrame(comparison_data)
+        return df.sort_values("Accuracy", ascending=False)
 
 
 def create_evaluation_report(
-    results: Dict[str, Any], history: Dict[str, List[float]], save_dir: Path, timestamp: str = None
-) -> Dict[str, str]:
-    """
-    Create comprehensive evaluation report with all visualizations
+    results_list: List[Dict[str, Any]],
+    save_path: Optional[Path] = None,
+    title: str = "Model Evaluation Report",
+) -> str:
+    """Create comprehensive evaluation report"""
+    report_lines = []
+    report_lines.append(f"{title}")
+    report_lines.append("=" * len(title))
+    report_lines.append("")
 
-    Args:
-        results: Evaluation results
-        history: Training history
-        save_dir: Directory to save reports
-        timestamp: Optional timestamp for consistent naming
+    # Summary table
+    report_lines.append("SUMMARY RESULTS")
+    report_lines.append("-" * 50)
+    
+    for result in results_list:
+        report_lines.append(f"Model: {result['model_name']} | Dataset: {result['dataset_name']}")
+        report_lines.append(f"  Accuracy:  {result['accuracy']:.4f}")
+        report_lines.append(f"  Precision: {result['precision']:.4f}")
+        report_lines.append(f"  Recall:    {result['recall']:.4f}")
+        report_lines.append(f"  F1-Score:  {result['f1_score']:.4f}")
+        if result.get('roc_auc'):
+            report_lines.append(f"  ROC-AUC:   {result['roc_auc']:.4f}")
+        report_lines.append("")
 
-    Returns:
-        Dictionary with paths to saved files
-    """
-    save_dir = Path(save_dir)
-    save_dir.mkdir(parents=True, exist_ok=True)
+    # Best performing model
+    if results_list:
+        best_model = max(results_list, key=lambda x: x['accuracy'])
+        report_lines.append("BEST PERFORMING MODEL")
+        report_lines.append("-" * 30)
+        report_lines.append(f"Model: {best_model['model_name']}")
+        report_lines.append(f"Dataset: {best_model['dataset_name']}")
+        report_lines.append(f"Accuracy: {best_model['accuracy']:.4f}")
+        report_lines.append("")
 
-    model_name = results["model_name"]
-    dataset_name = results["dataset_name"]
+    report_text = "\n".join(report_lines)
 
-    evaluator = ComprehensiveEvaluator(task_type=results["task_type"])
-    saved_files = {}
-
-    # Create consistent base name with timestamp if provided
-    if timestamp:
-        base_name = f"{model_name}_{dataset_name}_{timestamp}"
-    else:
-        base_name = f"{model_name}_{dataset_name}"
-
-    # 1. Confusion Matrix
-    cm_path = save_dir / f"{base_name}_confusion_matrix.png"
-    evaluator.plot_confusion_matrix(results, save_path=cm_path)
-    saved_files["confusion_matrix"] = str(cm_path)
-
-    # 2. Classification Metrics
-    metrics_path = save_dir / f"{base_name}_classification_metrics.png"
-    evaluator.plot_classification_metrics(results, save_path=metrics_path)
-    saved_files["classification_metrics"] = str(metrics_path)
-
-    # 3. Learning Curves
-    curves_path = save_dir / f"{base_name}_learning_curves.png"
-    evaluator.plot_learning_curves(history, model_name, save_path=curves_path)
-    saved_files["learning_curves"] = str(curves_path)
-
-    logger.info(f"Comprehensive evaluation report created in {save_dir}")
-    return saved_files
+    if save_path:
+        with open(save_path, "w") as f:
+            f.write(report_text)
+        return str(save_path)
+    
+    return report_text

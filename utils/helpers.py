@@ -26,10 +26,7 @@ def set_random_seed(seed: int = RANDOM_SEED) -> None:
     np.random.seed(seed)
     tf.random.set_seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
-
     tf.config.experimental.enable_op_determinism()
-
-    logger.info(f"Random seed set to {seed} for reproducibility")
 
 
 def get_device_info() -> Dict[str, Any]:
@@ -47,10 +44,6 @@ def get_device_info() -> Dict[str, Any]:
         for gpu in tf.config.list_physical_devices("GPU"):
             gpu_details.append({"name": gpu.name, "device_type": gpu.device_type})
         device_info["gpu_details"] = gpu_details
-
-    logger.info("Device information gathered")
-    for key, value in device_info.items():
-        logger.info(f"  {key}: {value}")
 
     return device_info
 
@@ -71,11 +64,9 @@ def save_model(
     if save_weights_only:
         save_path = save_dir / f"{model_name}_weights.h5"
         model.save_weights(save_path)
-        logger.info(f"Model weights saved to {save_path}")
     else:
         save_path = save_dir / f"{model_name}.h5"
         model.save(save_path)
-        logger.info(f"Full model saved to {save_path}")
 
     architecture_path = save_dir / f"{model_name}_architecture.json"
     with open(architecture_path, "w") as f:
@@ -85,7 +76,6 @@ def save_model(
     with open(summary_path, "w") as f:
         model.summary(print_fn=lambda x: f.write(x + "\n"))
 
-    logger.info(f"Model metadata saved to {save_dir}")
     return str(save_path)
 
 
@@ -111,10 +101,8 @@ def load_model(
 
         model = keras.models.model_from_json(model_json, custom_objects=custom_objects)
         model.load_weights(model_path)
-        logger.info(f"Model weights loaded from {model_path}")
     else:
         model = keras.models.load_model(model_path, custom_objects=custom_objects)
-        logger.info(f"Full model loaded from {model_path}")
 
     return model
 
@@ -140,7 +128,6 @@ def save_training_history(
     with open(history_path, "w") as f:
         json.dump(history_dict, f, indent=2)
 
-    logger.info(f"Training history saved to {history_path}")
     return str(history_path)
 
 
@@ -148,8 +135,6 @@ def load_training_history(history_path: str) -> Dict[str, Any]:
     """Load training history from file"""
     with open(history_path, "r") as f:
         history_dict = json.load(f)
-
-    logger.info(f"Training history loaded from {history_path}")
     return history_dict
 
 
@@ -163,17 +148,12 @@ def calculate_model_size(model: keras.Model) -> Dict[str, Union[int, float]]:
 
     model_size_mb = (total_params * 4) / (1024 * 1024)
 
-    size_info = {
+    return {
         "total_parameters": total_params,
         "trainable_parameters": trainable_params,
         "non_trainable_parameters": non_trainable_params,
         "model_size_mb": model_size_mb,
     }
-
-    logger.info(
-        f"Model size calculated: {total_params:,} parameters ({model_size_mb:.2f} MB)"
-    )
-    return size_info
 
 
 def format_time(seconds: float) -> str:
@@ -208,8 +188,6 @@ def create_experiment_config(
     }
 
     config.update(kwargs)
-
-    logger.info(f"Experiment configuration created: {config['experiment_name']}")
     return config
 
 
@@ -228,7 +206,6 @@ def save_experiment_config(
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2, default=str)
 
-    logger.info(f"Experiment configuration saved to {config_path}")
     return str(config_path)
 
 
@@ -388,8 +365,4 @@ def save_experiment_results(
             f.write(f"  Accuracy: {history.history['val_accuracy'][-1]:.4f}\n")
 
     saved_files["summary"] = str(summary_path)
-
-    logger.info(f"Experiment results saved to {save_dir}")
-    logger.info(f"Saved files: {list(saved_files.keys())}")
-
     return saved_files
