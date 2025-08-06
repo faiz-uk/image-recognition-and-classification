@@ -1,6 +1,5 @@
 """
 Configuration file for CNN Image Classification Project
-Contains all hyperparameters, paths, and settings
 """
 
 from pathlib import Path
@@ -20,16 +19,8 @@ DATASETS = {
         "num_classes": 10,
         "input_shape": (32, 32, 3),
         "class_names": [
-            "airplane",
-            "automobile",
-            "bird",
-            "cat",
-            "deer",
-            "dog",
-            "frog",
-            "horse",
-            "ship",
-            "truck",
+            "airplane", "automobile", "bird", "cat", "deer",
+            "dog", "frog", "horse", "ship", "truck",
         ],
     },
     "cifar100": {
@@ -43,16 +34,8 @@ DATASETS = {
         "num_classes": 10,
         "input_shape": (28, 28, 1),
         "class_names": [
-            "T-shirt/top",
-            "Trouser",
-            "Pullover",
-            "Dress",
-            "Coat",
-            "Sandal",
-            "Shirt",
-            "Sneaker",
-            "Bag",
-            "Ankle boot",
+            "T-shirt/top", "Trouser", "Pullover", "Dress", "Coat",
+            "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot",
         ],
     },
     "celeba": {
@@ -61,16 +44,8 @@ DATASETS = {
         "input_shape": (64, 64, 3),
         "class_names": None,
         "attributes": [
-            "Smiling",
-            "Male",
-            "Young",
-            "Attractive",
-            "Heavy_Makeup",
-            "Eyeglasses",
-            "Bald",
-            "Mustache",
-            "Goatee",
-            "Pale_Skin",
+            "Smiling", "Male", "Young", "Attractive", "Heavy_Makeup",
+            "Eyeglasses", "Bald", "Mustache", "Goatee", "Pale_Skin",
         ],
     },
 }
@@ -233,18 +208,8 @@ PERFORMANCE_BENCHMARKS = {
     },
 }
 
-AUGMENTATION_CONFIG = {
-    "rotation_range": 20,
-    "width_shift_range": 0.2,
-    "height_shift_range": 0.2,
-    "horizontal_flip": True,
-    "zoom_range": 0.2,
-    "shear_range": 0.15,
-    "fill_mode": "nearest",
-}
-
 AUGMENTATION_LEVELS = {
-    "none": {"enabled": False, "description": "No augmentation"},
+    "none": {"enabled": False},
     "minimal": {
         "enabled": True,
         "rotation_range": 10,
@@ -252,7 +217,6 @@ AUGMENTATION_LEVELS = {
         "height_shift_range": 0.1,
         "horizontal_flip": True,
         "zoom_range": 0.05,
-        "description": "Light augmentation for easy datasets",
     },
     "standard": {
         "enabled": True,
@@ -263,7 +227,6 @@ AUGMENTATION_LEVELS = {
         "zoom_range": 0.2,
         "shear_range": 0.15,
         "brightness_range": [0.9, 1.1],
-        "description": "Standard augmentation for most datasets",
     },
     "aggressive": {
         "enabled": True,
@@ -277,7 +240,6 @@ AUGMENTATION_LEVELS = {
         "brightness_range": [0.8, 1.2],
         "contrast_range": [0.8, 1.2],
         "saturation_range": [0.8, 1.2],
-        "description": "Aggressive augmentation for difficult datasets",
     },
 }
 
@@ -339,72 +301,23 @@ PREPROCESSING_CONFIG = {
     "channel_std": [0.229, 0.224, 0.225],
 }
 
-EVALUATION_CONFIG = {
-    "metrics": ["accuracy", "precision", "recall", "f1_score"],
-    "average": "weighted",
-    "plot_confusion_matrix": True,
-    "plot_training_curves": True,
-    "save_predictions": True,
-}
-
-HARDWARE_CONFIG = {"use_gpu": True, "gpu_memory_growth": True, "mixed_precision": True}
-
 RANDOM_SEED = 42
 
-LOGGING_CONFIG = {
-    "level": "INFO",
-    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    "save_to_file": True,
-}
-
-OPTIONAL_DATASETS = {
-    "celeba": {
-        "url": "https://drive.google.com/file/d/0B7EVK8r0v71pZjFTYXZWM3FlRnM/view",
-        "num_classes": 2,
-        "input_shape": (64, 64, 3),
-    },
-    "svhn": {
-        "url": "http://ufldl.stanford.edu/housenumbers/",
-        "num_classes": 10,
-        "input_shape": (32, 32, 3),
-    },
-}
-
-for directory in [
-    DATA_DIR,
-    SAVED_MODELS_DIR,
-    RESULTS_DIR,
-    PLOTS_DIR,
-    LOGS_DIR,
-    TABLES_DIR,
-]:
+for directory in [DATA_DIR, SAVED_MODELS_DIR, RESULTS_DIR, PLOTS_DIR, LOGS_DIR, TABLES_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 
 def get_optimal_config(model_name: str, dataset_name: str) -> dict:
-    """
-    Get optimal configuration for a model-dataset combination
-
-    Args:
-        model_name: Name of the model ('baseline_cnn', 'resnet50', etc.)
-        dataset_name: Name of the dataset ('cifar10', 'cifar100', etc.)
-
-    Returns:
-        Dictionary with optimal configuration
-    """
+    """Get optimal configuration for a model-dataset combination"""
     if model_name not in MODEL_TRAINING_CONFIG:
         raise ValueError(f"Model '{model_name}' not found in MODEL_TRAINING_CONFIG")
     if dataset_name not in DATASET_TRAINING_CONFIG:
-        raise ValueError(
-            f"Dataset '{dataset_name}' not found in DATASET_TRAINING_CONFIG"
-        )
+        raise ValueError(f"Dataset '{dataset_name}' not found in DATASET_TRAINING_CONFIG")
 
     model_config = MODEL_TRAINING_CONFIG[model_name].copy()
     dataset_config = DATASET_TRAINING_CONFIG[dataset_name].copy()
 
-    optimal_batch_size = int(
-        model_config["batch_size"] * dataset_config["batch_size_multiplier"]
-    )
+    optimal_batch_size = int(model_config["batch_size"] * dataset_config["batch_size_multiplier"])
     model_config["batch_size"] = max(8, optimal_batch_size)
 
     if dataset_config["difficulty"] == "hard":
@@ -412,27 +325,16 @@ def get_optimal_config(model_name: str, dataset_name: str) -> dict:
     elif dataset_config["difficulty"] == "easy":
         model_config["epochs"] = int(model_config["epochs"] * 0.8)
 
-    model_config.update(
-        {
-            "dataset_difficulty": dataset_config["difficulty"],
-            "recommended_augmentation": dataset_config["augmentation_level"],
-        }
-    )
+    model_config.update({
+        "dataset_difficulty": dataset_config["difficulty"],
+        "recommended_augmentation": dataset_config["augmentation_level"],
+    })
 
     return model_config
 
 
 def get_expected_performance(model_name: str, dataset_name: str) -> dict:
-    """
-    Get expected performance for a model-dataset combination
-
-    Args:
-        model_name: Name of the model
-        dataset_name: Name of the dataset
-
-    Returns:
-        Dictionary with expected performance metrics
-    """
+    """Get expected performance for a model-dataset combination"""
     if model_name not in PERFORMANCE_BENCHMARKS:
         return {"accuracy": 0.5, "range": (0.4, 0.6), "note": "No benchmark available"}
 
@@ -443,16 +345,7 @@ def get_expected_performance(model_name: str, dataset_name: str) -> dict:
 
 
 def get_augmentation_config(dataset_name: str, level: str = None) -> dict:
-    """
-    Get augmentation configuration for a dataset
-
-    Args:
-        dataset_name: Name of the dataset
-        level: Augmentation level ('minimal', 'standard', 'aggressive', or None for dataset default)
-
-    Returns:
-        Dictionary with augmentation configuration
-    """
+    """Get augmentation configuration for a dataset"""
     if dataset_name not in DATASET_AUGMENTATION_CONFIG:
         return AUGMENTATION_LEVELS["standard"].copy()
 
@@ -473,16 +366,7 @@ def get_augmentation_config(dataset_name: str, level: str = None) -> dict:
 
 
 def validate_config_combination(model_name: str, dataset_name: str) -> dict:
-    """
-    Validate and get warnings for a model-dataset combination
-
-    Args:
-        model_name: Name of the model
-        dataset_name: Name of the dataset
-
-    Returns:
-        Dictionary with validation results and warnings
-    """
+    """Validate and get warnings for a model-dataset combination"""
     warnings = []
     recommendations = []
 
@@ -493,27 +377,18 @@ def validate_config_combination(model_name: str, dataset_name: str) -> dict:
         warnings.append(f"Dataset '{dataset_name}' not found in DATASETS configuration")
 
     if model_name == "inceptionv3" and dataset_name in ["fashion_mnist"]:
-        warnings.append(
-            "InceptionV3 on Fashion-MNIST: Input will be resized from 28x28 to 75x75"
-        )
+        warnings.append("InceptionV3 on Fashion-MNIST: Input will be resized from 28x28 to 75x75")
 
     if model_name == "mobilenet" and dataset_name == "celeba":
-        recommendations.append(
-            "Consider using alpha=0.75 for MobileNet on CelebA for better performance"
-        )
+        recommendations.append("Consider using alpha=0.75 for MobileNet on CelebA for better performance")
 
     if model_name == "baseline_cnn" and dataset_name == "cifar100":
-        warnings.append(
-            "BaselineCNN on CIFAR-100: Expect lower performance due to high complexity"
-        )
+        warnings.append("BaselineCNN on CIFAR-100: Expect lower performance due to high complexity")
 
     memory_intensive = {
         ("inceptionv3", "celeba"): "High memory usage expected",
         ("resnet50", "celeba"): "High memory usage with 64x64 images",
-        (
-            "densenet121",
-            "celeba",
-        ): "Consider reducing batch size if memory issues occur",
+        ("densenet121", "celeba"): "Consider reducing batch size if memory issues occur",
     }
 
     if (model_name, dataset_name) in memory_intensive:
@@ -527,16 +402,7 @@ def validate_config_combination(model_name: str, dataset_name: str) -> dict:
 
 
 def get_training_summary(model_name: str, dataset_name: str) -> str:
-    """
-    Get a comprehensive training summary for a model-dataset combination
-
-    Args:
-        model_name: Name of the model
-        dataset_name: Name of the dataset
-
-    Returns:
-        Formatted string with training summary
-    """
+    """Get a comprehensive training summary for a model-dataset combination"""
     try:
         optimal_config = get_optimal_config(model_name, dataset_name)
         expected_perf = get_expected_performance(model_name, dataset_name)
@@ -585,24 +451,9 @@ Validation Status: {'Valid' if validation['valid'] else 'Has Warnings'}
 
 
 def estimate_training_time(model_name: str, dataset_name: str, epochs: int) -> str:
-    """
-    Estimate training time for a model-dataset combination
-
-    Args:
-        model_name: Name of the model
-        dataset_name: Name of the dataset
-        epochs: Number of epochs
-
-    Returns:
-        Estimated training time as string
-    """
+    """Estimate training time for a model-dataset combination"""
     base_times = {
-        "baseline_cnn": {
-            "cifar10": 1,
-            "cifar100": 1,
-            "fashion_mnist": 0.5,
-            "celeba": 2,
-        },
+        "baseline_cnn": {"cifar10": 1, "cifar100": 1, "fashion_mnist": 0.5, "celeba": 2},
         "resnet50": {"cifar10": 3, "cifar100": 3, "fashion_mnist": 2, "celeba": 8},
         "densenet121": {"cifar10": 2, "cifar100": 2, "fashion_mnist": 1.5, "celeba": 6},
         "inceptionv3": {"cifar10": 4, "cifar100": 4, "fashion_mnist": 3, "celeba": 10},
@@ -630,6 +481,4 @@ ALL_MODEL_DATASET_COMBINATIONS = [
 
 TOTAL_EXPERIMENTS = len(ALL_MODEL_DATASET_COMBINATIONS)
 
-print(
-    f"Configuration loaded: {TOTAL_EXPERIMENTS} total model-dataset combinations available"
-)
+print(f"Configuration loaded: {TOTAL_EXPERIMENTS} total model-dataset combinations available")
