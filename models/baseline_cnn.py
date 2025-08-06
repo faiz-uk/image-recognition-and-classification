@@ -1,6 +1,5 @@
 """
 Baseline CNN Model implementation for CNN Image Classification Project
-Implements a simple CNN architecture for comparison with advanced models
 """
 
 import os
@@ -11,26 +10,15 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, Model
 
-# Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.base_model import BaseModel
-from config import MODELS
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class BaselineCNNModel(BaseModel):
-    """
-    Baseline CNN model implementation
-
-    A simple CNN with basic building blocks:
-    - Convolutional layers with ReLU activation
-    - MaxPooling layers
-    - Dropout for regularization
-    - Dense classification head
-    """
+    """Baseline CNN model implementation"""
 
     def __init__(
         self,
@@ -39,23 +27,9 @@ class BaselineCNNModel(BaseModel):
         weights: str = None,
         include_top: bool = False,
         dropout_rate: float = 0.5,
-        hidden_units: int = 512,
         conv_filters: Tuple[int, ...] = (32, 64, 128, 256),
         dense_units: Tuple[int, ...] = (512, 256),
     ):
-        """
-        Initialize Baseline CNN model
-
-        Args:
-            num_classes: Number of output classes
-            input_shape: Input image shape (H, W, C)
-            weights: Pre-trained weights (None for baseline CNN)
-            include_top: Whether to include top classification layer
-            dropout_rate: Dropout rate for regularization
-            hidden_units: Number of hidden units in final dense layer
-            conv_filters: Tuple of filter sizes for conv layers
-            dense_units: Tuple of units for dense layers
-        """
         super().__init__(
             model_name="BaselineCNN",
             num_classes=num_classes,
@@ -65,46 +39,28 @@ class BaselineCNNModel(BaseModel):
         )
 
         self.dropout_rate = dropout_rate
-        self.hidden_units = hidden_units
         self.conv_filters = conv_filters
         self.dense_units = dense_units
 
-        # Update model info with Baseline CNN specific parameters
         self.model_info.update(
             {
                 "architecture": "BaselineCNN",
-                "depth": len(conv_filters) * 2
-                + len(dense_units)
-                + 1,  # Conv blocks + Dense layers + Output
+                "depth": len(conv_filters) * 2 + len(dense_units) + 1,
                 "dropout_rate": dropout_rate,
-                "hidden_units": hidden_units,
                 "conv_filters": conv_filters,
                 "dense_units": dense_units,
-                "trainable_params": "all",
             }
         )
 
         logger.info(f"Baseline CNN model initialized for {num_classes} classes")
-        logger.info(
-            f"Architecture: {len(conv_filters)} conv blocks + {len(dense_units)} dense layers"
-        )
 
     def build_model(self) -> Model:
-        """
-        Build Baseline CNN model using configured architecture parameters
+        """Build Baseline CNN model using configured architecture parameters"""
+        logger.info(f"Building Baseline CNN model with {len(self.conv_filters)} conv layers...")
 
-        Returns:
-            Compiled Keras model
-        """
-        logger.info(
-            f"Building Baseline CNN model with {len(self.conv_filters)} conv layers and {len(self.dense_units)} dense layers..."
-        )
-
-        # Input layer
         inputs = keras.Input(shape=self.input_shape, name="input")
         x = inputs
 
-        # Convolutional layers based on conv_filters parameter
         for i, filters in enumerate(self.conv_filters):
             x = layers.Conv2D(
                 filters,
@@ -117,10 +73,8 @@ class BaselineCNNModel(BaseModel):
             x = layers.MaxPooling2D((2, 2), name=f"pool{i+1}")(x)
             x = layers.Dropout(0.25, name=f"dropout{i+1}")(x)
 
-        # Flatten layer
         x = layers.Flatten(name="flatten")(x)
 
-        # Dense layers based on dense_units parameter
         for i, units in enumerate(self.dense_units):
             x = layers.Dense(
                 units,
@@ -130,7 +84,6 @@ class BaselineCNNModel(BaseModel):
             )(x)
             x = layers.Dropout(self.dropout_rate, name=f"dense_dropout{i+1}")(x)
 
-        # Output layer
         if self.num_classes == 2:
             outputs = layers.Dense(
                 1,
@@ -146,20 +99,12 @@ class BaselineCNNModel(BaseModel):
                 name="predictions",
             )(x)
 
-        # Create model
         model = Model(
             inputs=inputs,
             outputs=outputs,
             name=f"BaselineCNN_{len(self.conv_filters)}Conv_{len(self.dense_units)}Dense",
         )
 
-        # Log model summary
-        logger.info(
-            f"Baseline CNN model architecture (Conv: {self.conv_filters}, Dense: {self.dense_units}):"
-        )
-        model.summary(print_fn=logger.info)
-
-        # Calculate model size
         total_params = model.count_params()
         trainable_params = sum([tf.size(w).numpy() for w in model.trainable_weights])
 
@@ -172,26 +117,18 @@ class BaselineCNNModel(BaseModel):
             }
         )
 
-        logger.info(
-            f"Model created - Total params: {total_params:,}, Trainable: {trainable_params:,}"
-        )
+        logger.info(f"Model created - Total params: {total_params:,}, Trainable: {trainable_params:,}")
 
         self.model = model
         return model
 
     def get_model_config(self) -> Dict[str, Any]:
-        """
-        Get model configuration for saving/loading
-
-        Returns:
-            Dictionary with model configuration
-        """
+        """Get model configuration for saving/loading"""
         config = {
             "model_name": self.model_name,
             "num_classes": self.num_classes,
             "input_shape": self.input_shape,
             "dropout_rate": self.dropout_rate,
-            "hidden_units": self.hidden_units,
             "conv_filters": self.conv_filters,
             "dense_units": self.dense_units,
             "model_info": self.model_info,
@@ -205,31 +142,16 @@ class BaselineCNNModel(BaseModel):
         loss: str = None,
         metrics: list = None,
     ) -> None:
-        """
-        Compile the model with specified parameters
-
-        Args:
-            optimizer: Optimizer name
-            learning_rate: Learning rate
-            loss: Loss function
-            metrics: List of metrics to track
-        """
+        """Compile the model with specified parameters"""
         if self.model is None:
             raise ValueError("Model must be built before compilation")
 
-        # Set default loss based on number of classes
         if loss is None:
-            loss = (
-                "binary_crossentropy"
-                if self.num_classes == 2
-                else "categorical_crossentropy"
-            )
+            loss = "binary_crossentropy" if self.num_classes == 2 else "categorical_crossentropy"
 
-        # Set default metrics
         if metrics is None:
             metrics = ["accuracy"]
 
-        # Get optimizer
         if optimizer.lower() == "adam":
             opt = keras.optimizers.Adam(learning_rate=learning_rate)
         elif optimizer.lower() == "sgd":
@@ -240,27 +162,15 @@ class BaselineCNNModel(BaseModel):
             opt = keras.optimizers.Adam(learning_rate=learning_rate)
 
         self.model.compile(optimizer=opt, loss=loss, metrics=metrics)
-
         logger.info(f"Model compiled with {optimizer} optimizer (lr={learning_rate})")
 
 
-# Factory function for easier model creation
 def create_baseline_cnn(
     num_classes: int,
     input_shape: Tuple[int, int, int] = (32, 32, 3),
     architecture: str = "small",
 ) -> BaselineCNNModel:
-    """
-    Factory function to create baseline CNN with predefined architectures
-
-    Args:
-        num_classes: Number of output classes
-        input_shape: Input image shape
-        architecture: 'small', 'medium', or 'large'
-
-    Returns:
-        BaselineCNNModel instance
-    """
+    """Factory function to create baseline CNN with predefined architectures"""
     architectures = {
         "small": {"conv_filters": (32, 64), "dense_units": (256,), "dropout_rate": 0.3},
         "medium": {
@@ -276,16 +186,13 @@ def create_baseline_cnn(
     }
 
     config = architectures.get(architecture, architectures["medium"])
-
     return BaselineCNNModel(num_classes=num_classes, input_shape=input_shape, **config)
 
 
-# Example usage and testing
 if __name__ == "__main__":
     print("Testing Baseline CNN model...")
 
     try:
-        # Test model creation
         model = BaselineCNNModel(
             num_classes=10,
             input_shape=(32, 32, 3),
@@ -294,10 +201,8 @@ if __name__ == "__main__":
             dense_units=(512, 256),
         )
 
-        # Build model
         keras_model = model.build_model()
 
-        # Compile model
         model.compile_model(
             optimizer="adam",
             learning_rate=0.001,
@@ -313,7 +218,6 @@ if __name__ == "__main__":
 
         print("\nBaseline CNN model test completed successfully!")
 
-        # Test factory function
         print("\nTesting factory function...")
         small_model = create_baseline_cnn(num_classes=10, architecture="small")
         medium_model = create_baseline_cnn(num_classes=10, architecture="medium")
