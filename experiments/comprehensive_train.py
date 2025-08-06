@@ -97,7 +97,6 @@ def get_data_loader(dataset_name: str, **kwargs):
         )
         return loader_class(
             validation_split=kwargs.get("validation_split", 0.2),
-            use_local=kwargs.get("use_local", True),
             resize_to=resize_to,
         )
     elif dataset_name.lower() == "celeba":
