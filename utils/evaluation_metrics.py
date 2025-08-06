@@ -583,7 +583,7 @@ def evaluate_predictions(
 
 
 def create_evaluation_report(
-    results: Dict[str, Any], history: Dict[str, List[float]], save_dir: Path
+    results: Dict[str, Any], history: Dict[str, List[float]], save_dir: Path, timestamp: str = None
 ) -> Dict[str, str]:
     """
     Create comprehensive evaluation report with all visualizations
@@ -592,6 +592,7 @@ def create_evaluation_report(
         results: Evaluation results
         history: Training history
         save_dir: Directory to save reports
+        timestamp: Optional timestamp for consistent naming
 
     Returns:
         Dictionary with paths to saved files
@@ -605,18 +606,24 @@ def create_evaluation_report(
     evaluator = ComprehensiveEvaluator(task_type=results["task_type"])
     saved_files = {}
 
+    # Create consistent base name with timestamp if provided
+    if timestamp:
+        base_name = f"{model_name}_{dataset_name}_{timestamp}"
+    else:
+        base_name = f"{model_name}_{dataset_name}"
+
     # 1. Confusion Matrix
-    cm_path = save_dir / f"{model_name}_{dataset_name}_confusion_matrix.png"
+    cm_path = save_dir / f"{base_name}_confusion_matrix.png"
     evaluator.plot_confusion_matrix(results, save_path=cm_path)
     saved_files["confusion_matrix"] = str(cm_path)
 
     # 2. Classification Metrics
-    metrics_path = save_dir / f"{model_name}_{dataset_name}_classification_metrics.png"
+    metrics_path = save_dir / f"{base_name}_classification_metrics.png"
     evaluator.plot_classification_metrics(results, save_path=metrics_path)
     saved_files["classification_metrics"] = str(metrics_path)
 
     # 3. Learning Curves
-    curves_path = save_dir / f"{model_name}_{dataset_name}_learning_curves.png"
+    curves_path = save_dir / f"{base_name}_learning_curves.png"
     evaluator.plot_learning_curves(history, model_name, save_path=curves_path)
     saved_files["learning_curves"] = str(curves_path)
 

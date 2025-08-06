@@ -445,10 +445,16 @@ def train_model(
 
         # Generate comprehensive evaluation report
         logger.info("Generating comprehensive evaluation report...")
+        
+        # Create organized evaluation directory: model_dataset_timestamp
+        eval_dir = Path("results") / "comprehensive_evaluation" / model_name_clean
+        eval_dir.mkdir(parents=True, exist_ok=True)
+        
         eval_report_files = create_evaluation_report(
             results=test_eval_results,
             history=history.history,
-            save_dir=results_dir / "comprehensive_evaluation",
+            save_dir=eval_dir,
+            timestamp=timestamp,
         )
 
         # Update experiment results with evaluation report paths
