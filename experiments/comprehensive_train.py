@@ -449,12 +449,18 @@ def train_model(
         eval_dir = Path("results") / "comprehensive_evaluation" / model_name_clean
         eval_dir.mkdir(parents=True, exist_ok=True)
         
-        eval_report_files = create_evaluation_report(
-            results=test_eval_results,
-            history=history.history,
-            save_dir=eval_dir,
-            timestamp=timestamp,
-        )
+        # Create simple evaluation report
+        report_path = eval_dir / f"{model_name_clean}_evaluation_report.txt"
+        try:
+            eval_report_path = create_evaluation_report(
+                results_list=[test_eval_results],
+                save_path=report_path,
+                title=f"{architecture.upper()} on {dataset.upper()} - Evaluation Report",
+            )
+            eval_report_files = {"evaluation_report": eval_report_path}
+        except Exception as e:
+            logger.warning(f"Could not create evaluation report: {e}")
+            eval_report_files = {"evaluation_report": "N/A"}
 
         # Update experiment results with evaluation report paths
         experiment_results["comprehensive_evaluation"][
@@ -464,13 +470,7 @@ def train_model(
         logger.info(f"Results saved for experiment: {model_name_clean}")
         logger.info("Comprehensive evaluation report includes:")
         logger.info(
-            f"Confusion Matrix: {eval_report_files.get('confusion_matrix', 'N/A')}"
-        )
-        logger.info(
-            f"Classification Metrics: {eval_report_files.get('classification_metrics', 'N/A')}"
-        )
-        logger.info(
-            f"Learning Curves: {eval_report_files.get('learning_curves', 'N/A')}"
+            f"Evaluation Report: {eval_report_files.get('evaluation_report', 'N/A')}"
         )
 
     return (

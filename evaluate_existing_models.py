@@ -331,117 +331,124 @@ def find_saved_models(models_dir: str = "saved_models") -> list:
 def evaluate_all_models_on_dataset(dataset_name: str, **dataset_kwargs):
     """Evaluate all saved models on a specific dataset"""
     
-    saved_models = find_saved_models()
-    if not saved_models:
-        logger.warning("No saved models found in saved_models/ directory")
-        return []
-    
-    logger.info(f"Found {len(saved_models)} total model files")
-    
-    # Filter models by dataset compatibility
-    dataset_models = []
-    skipped_models = []
-    
-    for model_path in saved_models:
-        if verify_model_dataset_compatibility(str(model_path), dataset_name):
-            dataset_models.append(model_path)
-            logger.info(f"Matched: {model_path.name}")
-        else:
-            skipped_models.append(model_path.name)
-    
-    if skipped_models:
-        logger.info(f"Skipped {len(skipped_models)} incompatible models")
-    
-    if not dataset_models:
-        logger.warning(f"No models found trained on {dataset_name}")
-        return []
-    
-    logger.info(f"Found {len(dataset_models)} models trained on {dataset_name.upper()}")
-    
-    results_summary = []
-    successful_evaluations = 0
-    failed_evaluations = 0
-    
-    for i, model_path in enumerate(dataset_models, 1):
-        try:
-            logger.info(f"\n{'='*80}")
-            logger.info(f"Evaluating {i}/{len(dataset_models)}: {model_path.name}")
-            logger.info(f"{'='*80}")
-            
-            start_time = time.time()
-            
-            result = load_and_evaluate_model(
-                model_path=str(model_path),
-                dataset_name=dataset_name,
-                **dataset_kwargs
-            )
-            
-            evaluation_time = time.time() - start_time
-            
-            if result:
-                test_results = result['test_results']
-                results_summary.append({
-                    'model_file': model_path.name,
-                    'model_name': test_results['model_name'],
-                    'dataset': dataset_name,
-                    'accuracy': test_results['accuracy'],
-                    'precision': test_results['precision'],
-                    'recall': test_results['recall'],
-                    'f1_score': test_results['f1_score'],
-                    'roc_auc': test_results['roc_auc'],
-                    'results_dir': result['results_dir'],
-                    'evaluation_time': evaluation_time
-                })
-                successful_evaluations += 1
-                logger.info(f"Evaluation completed in {evaluation_time:.1f}s")
+    try:
+        saved_models = find_saved_models()
+        if not saved_models:
+            logger.warning("No saved models found in saved_models/ directory")
+            return []
+        
+        logger.info(f"Found {len(saved_models)} total model files")
+        
+        # Filter models by dataset compatibility
+        dataset_models = []
+        skipped_models = []
+        
+        for model_path in saved_models:
+            if verify_model_dataset_compatibility(str(model_path), dataset_name):
+                dataset_models.append(model_path)
+                logger.info(f"Matched: {model_path.name}")
             else:
+                skipped_models.append(model_path.name)
+        
+        if skipped_models:
+            logger.info(f"Skipped {len(skipped_models)} incompatible models")
+        
+        if not dataset_models:
+            logger.warning(f"No models found trained on {dataset_name}")
+            return []
+        
+        logger.info(f"Found {len(dataset_models)} models trained on {dataset_name.upper()}")
+        
+        results_summary = []
+        successful_evaluations = 0
+        failed_evaluations = 0
+        
+        for i, model_path in enumerate(dataset_models, 1):
+            try:
+                logger.info(f"\n{'='*80}")
+                logger.info(f"Evaluating {i}/{len(dataset_models)}: {model_path.name}")
+                logger.info(f"{'='*80}")
+                
+                start_time = time.time()
+                
+                result = load_and_evaluate_model(
+                    model_path=str(model_path),
+                    dataset_name=dataset_name,
+                    **dataset_kwargs
+                )
+                
+                evaluation_time = time.time() - start_time
+                
+                if result:
+                    test_results = result['test_results']
+                    results_summary.append({
+                        'model_file': model_path.name,
+                        'model_name': test_results['model_name'],
+                        'dataset': dataset_name,
+                        'accuracy': test_results['accuracy'],
+                        'precision': test_results['precision'],
+                        'recall': test_results['recall'],
+                        'f1_score': test_results['f1_score'],
+                        'roc_auc': test_results['roc_auc'],
+                        'results_dir': result['results_dir'],
+                        'evaluation_time': evaluation_time
+                    })
+                    successful_evaluations += 1
+                    logger.info(f"Evaluation completed in {evaluation_time:.1f}s")
+                else:
+                    results_summary.append({
+                        'model_file': model_path.name,
+                        'error': 'Evaluation failed - see logs above',
+                        'evaluation_time': evaluation_time
+                    })
+                    failed_evaluations += 1
+                    logger.error(f"Evaluation failed after {evaluation_time:.1f}s")
+                    
+            except Exception as e:
+                evaluation_time = time.time() - start_time if 'start_time' in locals() else 0
+                logger.error(f"Unexpected error evaluating {model_path.name}: {e}")
                 results_summary.append({
                     'model_file': model_path.name,
-                    'error': 'Evaluation failed - see logs above',
+                    'error': str(e),
                     'evaluation_time': evaluation_time
                 })
                 failed_evaluations += 1
-                logger.error(f"Evaluation failed after {evaluation_time:.1f}s")
-                
-        except Exception as e:
-            evaluation_time = time.time() - start_time if 'start_time' in locals() else 0
-            logger.error(f"Unexpected error evaluating {model_path.name}: {e}")
-            results_summary.append({
-                'model_file': model_path.name,
-                'error': str(e),
-                'evaluation_time': evaluation_time
-            })
-            failed_evaluations += 1
-    
-    # Display summary
-    logger.info(f"\n{'='*100}")
-    logger.info(f"COMPREHENSIVE EVALUATION SUMMARY - {dataset_name.upper()}")
-    logger.info(f"{'='*100}")
-    logger.info(f"Total models evaluated: {len(dataset_models)}")
-    logger.info(f"Successful evaluations: {successful_evaluations}")
-    logger.info(f"Failed evaluations: {failed_evaluations}")
-    
-    valid_results = [r for r in results_summary if 'error' not in r]
-    valid_results.sort(key=lambda x: x['f1_score'], reverse=True)
-    
-    if valid_results:
-        logger.info(f"\nMODEL PERFORMANCE RANKING:")
-        logger.info(f"{'Rank':<4} {'Model':<20} {'Accuracy':<9} {'Precision':<10} {'Recall':<8} {'F1-Score':<9} {'ROC AUC':<8}")
-        logger.info("-" * 80)
         
-        for i, result in enumerate(valid_results, 1):
-            roc_str = f"{result['roc_auc']:.4f}" if result['roc_auc'] else "N/A"
-            logger.info(f"{i:<4} {result['model_name']:<20} {result['accuracy']:<9.4f} "
-                       f"{result['precision']:<10.4f} {result['recall']:<8.4f} "
-                       f"{result['f1_score']:<9.4f} {roc_str:<8}")
-    
-    failed_results = [r for r in results_summary if 'error' in r]
-    if failed_results:
-        logger.info(f"\nFAILED EVALUATIONS:")
-        for result in failed_results:
-            logger.info(f"   {result['model_file']}: {result['error']}")
-    
-    return results_summary
+        # Display summary
+        logger.info(f"\n{'='*100}")
+        logger.info(f"COMPREHENSIVE EVALUATION SUMMARY - {dataset_name.upper()}")
+        logger.info(f"{'='*100}")
+        logger.info(f"Total models evaluated: {len(dataset_models)}")
+        logger.info(f"Successful evaluations: {successful_evaluations}")
+        logger.info(f"Failed evaluations: {failed_evaluations}")
+        
+        valid_results = [r for r in results_summary if 'error' not in r]
+        valid_results.sort(key=lambda x: x['f1_score'], reverse=True)
+        
+        if valid_results:
+            logger.info(f"\nMODEL PERFORMANCE RANKING:")
+            logger.info(f"{'Rank':<4} {'Model':<20} {'Accuracy':<9} {'Precision':<10} {'Recall':<8} {'F1-Score':<9} {'ROC AUC':<8}")
+            logger.info("-" * 80)
+            
+            for i, result in enumerate(valid_results, 1):
+                roc_str = f"{result['roc_auc']:.4f}" if result['roc_auc'] else "N/A"
+                logger.info(f"{i:<4} {result['model_name']:<20} {result['accuracy']:<9.4f} "
+                           f"{result['precision']:<10.4f} {result['recall']:<8.4f} "
+                           f"{result['f1_score']:<9.4f} {roc_str:<8}")
+        
+        failed_results = [r for r in results_summary if 'error' in r]
+        if failed_results:
+            logger.info(f"\nFAILED EVALUATIONS:")
+            for result in failed_results:
+                logger.info(f"   {result['model_file']}: {result['error']}")
+        
+        return results_summary
+        
+    except Exception as e:
+        logger.error(f"Critical error in evaluate_all_models_on_dataset: {e}")
+        import traceback
+        traceback.print_exc()
+        return []  # Return empty list instead of None
 
 
 def main():
@@ -496,9 +503,12 @@ def main():
         logger.info(f"Evaluating ALL saved models on {args.dataset.upper()}")
         results = evaluate_all_models_on_dataset(args.dataset, **dataset_kwargs)
         
-        if results:
+        if results is not None:
             logger.info(f"Evaluation completed for {len(results)} models")
-        
+        else:
+            logger.error("Evaluation failed - no results returned")
+            return 1
+    
     elif args.model_path:
         if not Path(args.model_path).exists():
             logger.error(f"Model file not found: {args.model_path}")

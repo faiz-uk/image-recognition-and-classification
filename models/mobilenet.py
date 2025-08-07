@@ -33,6 +33,7 @@ class MobileNetModel(BaseModel):
         freeze_base: bool = True,
         alpha: float = 1.0,
         depth_multiplier: int = 1,
+        trainable_params: str = "top_layers",  # Added missing parameter
     ):
         super().__init__(
             model_name="MobileNet",
@@ -47,6 +48,7 @@ class MobileNetModel(BaseModel):
         self.freeze_base = freeze_base
         self.alpha = alpha
         self.depth_multiplier = depth_multiplier
+        self.trainable_params = trainable_params  # Store the parameter
 
         self.model_info.update(
             {
@@ -65,32 +67,44 @@ class MobileNetModel(BaseModel):
         """Build MobileNet model with custom classification head"""
         logger.info("Building MobileNet model...")
 
-        if self.input_shape[2] == 1:
-            inputs = keras.Input(shape=self.input_shape, name="input")
-            x = layers.Lambda(
-                lambda x: tf.repeat(x, 3, axis=-1), name="grayscale_to_rgb"
-            )(inputs)
+        inputs = keras.Input(shape=self.input_shape, name="input")
 
+        # Handle grayscale to RGB conversion without Lambda layers
+        if self.input_shape[2] == 1:  # Grayscale input
+            # Repeat the single channel 3 times using native operations
+            x = layers.Conv2D(3, (1, 1), activation='linear', use_bias=False, 
+                            kernel_initializer='ones', trainable=False)(inputs)
+        else:
+            x = inputs
+
+        # Create base model with proper input handling
+        if self.input_shape[2] == 1:
+            # For grayscale, we need RGB input shape for pretrained weights
             self.base_model = MobileNet(
                 weights=self.weights,
                 include_top=False,
-                input_tensor=x,
-                alpha=self.alpha,
-                depth_multiplier=self.depth_multiplier,
+                input_shape=(self.input_shape[0], self.input_shape[1], 3),
                 pooling=None,
+                alpha=self.alpha,
             )
         else:
             self.base_model = MobileNet(
                 weights=self.weights,
-                include_top=self.include_top,
+                include_top=False,
                 input_shape=self.input_shape,
-                alpha=self.alpha,
-                depth_multiplier=self.depth_multiplier,
                 pooling=None,
+                alpha=self.alpha,
             )
 
+        # Apply base model
+        x = self.base_model(x)
+
+        # Build complete model
+        self.model = keras.Model(inputs=inputs, outputs=x, name="mobilenet_base")
+        
+        # Add custom classification head
         self.model = self.add_classification_head(
-            base_model=self.base_model,
+            base_model=self.model,
             dropout_rate=self.dropout_rate,
             hidden_units=self.hidden_units,
         )

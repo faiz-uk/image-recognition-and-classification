@@ -31,6 +31,7 @@ class InceptionV3Model(BaseModel):
         dropout_rate: float = 0.5,
         hidden_units: int = 512,
         freeze_base: bool = True,
+        trainable_params: str = "top_layers",  # Added missing parameter
     ):
         super().__init__(
             model_name="InceptionV3",
@@ -43,6 +44,7 @@ class InceptionV3Model(BaseModel):
         self.dropout_rate = dropout_rate
         self.hidden_units = hidden_units
         self.freeze_base = freeze_base
+        self.trainable_params = trainable_params  # Store the parameter
 
         self.model_info.update(
             {
@@ -51,6 +53,7 @@ class InceptionV3Model(BaseModel):
                 "dropout_rate": dropout_rate,
                 "hidden_units": hidden_units,
                 "freeze_base": freeze_base,
+                "trainable_params": trainable_params,  # Include in model info
             }
         )
 
@@ -60,43 +63,41 @@ class InceptionV3Model(BaseModel):
         """Build InceptionV3 model with custom classification head"""
         logger.info("Building InceptionV3 model...")
 
+        inputs = keras.Input(shape=self.input_shape, name="input")
+        x = inputs
+
+        # Handle grayscale to RGB conversion without Lambda layers
         if self.input_shape[2] == 1:
-            inputs = keras.Input(shape=self.input_shape, name="input")
-            x = layers.Lambda(
-                lambda x: tf.repeat(x, 3, axis=-1), name="grayscale_to_rgb"
-            )(inputs)
-            x = layers.Lambda(
-                lambda x: tf.image.resize(x, [75, 75]), name="resize_input"
-            )(x)
+            # Repeat the single channel 3 times using native operations
+            x = layers.Conv2D(3, (1, 1), activation='linear', use_bias=False, 
+                            kernel_initializer='ones', trainable=False)(x)
 
-            self.base_model = InceptionV3(
-                weights=self.weights,
-                include_top=False,
-                input_tensor=x,
-                pooling=None,
-            )
-        elif self.input_shape[0] < 75 or self.input_shape[1] < 75:
-            inputs = keras.Input(shape=self.input_shape, name="input")
-            x = layers.Lambda(
-                lambda x: tf.image.resize(x, [75, 75]), name="resize_input"
-            )(inputs)
+        # Handle resizing without Lambda layers - InceptionV3 needs min 75x75
+        if self.input_shape[0] < 75 or self.input_shape[1] < 75:
+            # Use native Resizing layer instead of Lambda
+            x = layers.Resizing(75, 75, interpolation="bilinear")(x)
 
-            self.base_model = InceptionV3(
-                weights=self.weights,
-                include_top=False,
-                input_tensor=x,
-                pooling=None,
-            )
-        else:
-            self.base_model = InceptionV3(
-                weights=self.weights,
-                include_top=self.include_top,
-                input_shape=self.input_shape,
-                pooling=None,
-            )
+        # Create base model with proper input handling
+        target_shape = (75, 75, 3) if (self.input_shape[0] < 75 or self.input_shape[1] < 75 or self.input_shape[2] == 1) else self.input_shape
+        if self.input_shape[2] == 1:
+            target_shape = (max(75, self.input_shape[0]), max(75, self.input_shape[1]), 3)
 
+        self.base_model = InceptionV3(
+            weights=self.weights,
+            include_top=False,
+            input_shape=target_shape,
+            pooling=None,
+        )
+
+        # Apply base model
+        x = self.base_model(x)
+
+        # Build complete model
+        self.model = keras.Model(inputs=inputs, outputs=x, name="inceptionv3_base")
+        
+        # Add custom classification head
         self.model = self.add_classification_head(
-            base_model=self.base_model,
+            base_model=self.model,
             dropout_rate=self.dropout_rate,
             hidden_units=self.hidden_units,
         )
